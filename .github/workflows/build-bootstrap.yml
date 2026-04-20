@@ -19,8 +19,8 @@ jobs:
 
       - name: Build Bootstrap using Docker
         run: |
-          # Use /tmp as it's guaranteed to be writable inside the container
-          ./scripts/run-docker.sh bash -c "export ANDROID_HOME=/tmp/android-sdk; mkdir -p \$ANDROID_HOME; cp -r /home/builder/lib/android-sdk-9123335/* \$ANDROID_HOME/ 2>/dev/null || true; ./scripts/setup-android-sdk.sh && ./scripts/build-bootstraps.sh --architectures aarch64"
+          # Ensure all scripts have execution permissions at runtime and run build
+          ./scripts/run-docker.sh bash -c "find . -maxdepth 4 -name '*.sh' -o -name '*.py' -o -name 'termux-*' | xargs chmod +x 2>/dev/null || true; export ANDROID_HOME=/tmp/android-sdk; mkdir -p \$ANDROID_HOME; cp -r /home/builder/lib/android-sdk-9123335/* \$ANDROID_HOME/ 2>/dev/null || true; ./scripts/setup-android-sdk.sh && ./scripts/build-bootstraps.sh --architectures aarch64"
 
       - name: Upload Bootstrap Artifact
         uses: actions/upload-artifact@v4
