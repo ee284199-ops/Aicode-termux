@@ -19,9 +19,8 @@ jobs:
 
       - name: Build Bootstrap using Docker
         run: |
-          # Run build script. scripts/run-docker.sh handles container creation.
-          # We pass the setup and build commands directly.
-          ./scripts/run-docker.sh bash -c "./scripts/setup-android-sdk.sh && ./scripts/build-bootstraps.sh --architectures aarch64"
+          # Redefine ANDROID_HOME to a writable location and run build
+          ./scripts/run-docker.sh bash -c "export ANDROID_HOME=/home/builder/termux-packages/android-sdk; mkdir -p \$ANDROID_HOME; cp -r /home/builder/lib/android-sdk-9123335/* \$ANDROID_HOME/ 2>/dev/null || true; ./scripts/setup-android-sdk.sh && ./scripts/build-bootstraps.sh --architectures aarch64"
 
       - name: Upload Bootstrap Artifact
         uses: actions/upload-artifact@v4
