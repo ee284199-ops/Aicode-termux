@@ -1,4 +1,4 @@
-name: Build Termux Bootstrap
+name: Build Termux Bootstrap (Fast)
 
 on:
   push:
@@ -7,20 +7,20 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker
+      - name: Set execution permissions
         run: |
-          sudo apt-get update
-          sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+          find . -name "*.sh" -o -name "*.py" | xargs chmod +x
 
-      - name: Build Bootstrap using Docker
+      - name: Generate Bootstrap
         run: |
-          # Ensure all scripts have execution permissions recursively and run build
-          ./scripts/run-docker.sh bash -c "find . -name '*.sh' -o -name '*.py' -o -name 'termux-*' | xargs chmod +x 2>/dev/null || true; export ANDROID_HOME=/tmp/android-sdk; mkdir -p \$ANDROID_HOME; cp -r /home/builder/lib/android-sdk-9123335/* \$ANDROID_HOME/ 2>/dev/null || true; ./scripts/setup-android-sdk.sh && ./scripts/build-bootstraps.sh --architectures aarch64"
+          # Use generate-bootstraps.sh to create bootstrap by downloading pre-built debs.
+          # This bypasses the need for Docker/NDK and is much faster.
+          ./scripts/generate-bootstraps.sh --architectures aarch64
 
       - name: Upload Bootstrap Artifact
         uses: actions/upload-artifact@v4
