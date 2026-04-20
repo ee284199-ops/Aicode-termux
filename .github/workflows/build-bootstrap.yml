@@ -19,11 +19,8 @@ jobs:
 
       - name: Build Bootstrap using Docker
         run: |
-          # Termux build system uses Docker to ensure a consistent Ubuntu environment.
-          # We run the official build script inside a container.
-          # The package name is already modified to com.aicode.studio in scripts/properties.sh.
-          
-          ./scripts/run-docker.sh ./scripts/build-bootstraps.sh --architectures aarch64
+          # Fix SDK permissions and ensure dependencies are met before building
+          ./scripts/run-docker.sh bash -c "sudo chown -R builder:builder /home/builder/lib/android-sdk-9123335 && ./scripts/setup-android-sdk.sh && ./scripts/build-bootstraps.sh --architectures aarch64"
 
       - name: Upload Bootstrap Artifact
         uses: actions/upload-artifact@v4
