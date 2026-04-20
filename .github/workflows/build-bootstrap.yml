@@ -1,0 +1,32 @@
+name: Build Termux Bootstrap
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+
+      - name: Build Bootstrap using Docker
+        run: |
+          # Termux build system uses Docker to ensure a consistent Ubuntu environment.
+          # We run the official build script inside a container.
+          # The package name is already modified to com.aicode.studio in scripts/properties.sh.
+          
+          ./scripts/run-docker.sh ./scripts/build-bootstraps.sh --architectures aarch64
+
+      - name: Upload Bootstrap Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootstrap-aarch64
+          path: ./*.zip
