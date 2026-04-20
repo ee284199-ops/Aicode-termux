@@ -19,8 +19,9 @@ jobs:
 
       - name: Build Bootstrap using Docker
         run: |
-          # Fix SDK permissions and ensure dependencies are met before building
-          ./scripts/run-docker.sh bash -c "sudo chown -R builder:builder /home/builder/lib/android-sdk-9123335 && ./scripts/setup-android-sdk.sh && ./scripts/build-bootstraps.sh --architectures aarch64"
+          # Run build script. scripts/run-docker.sh handles container creation.
+          # We pass the setup and build commands directly.
+          ./scripts/run-docker.sh bash -c "./scripts/setup-android-sdk.sh && ./scripts/build-bootstraps.sh --architectures aarch64"
 
       - name: Upload Bootstrap Artifact
         uses: actions/upload-artifact@v4
