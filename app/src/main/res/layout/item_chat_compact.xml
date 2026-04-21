@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="2dp">
+
+    <!-- 압축 구분선 헤더 (클릭으로 펼치기/접기) -->
+    <LinearLayout
+        android:id="@+id/compactHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true"
+        android:paddingVertical="6dp">
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1"
+            android:background="#2AFFFFFF" />
+
+        <TextView
+            android:id="@+id/tvCompactLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="10dp"
+            android:textColor="#55FFFFFF"
+            android:textSize="10sp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1"
+            android:background="#2AFFFFFF" />
+    </LinearLayout>
+
+    <!-- 펼쳤을 때 내용 (압축된 메시지 또는 요약) -->
+    <TextView
+        android:id="@+id/tvCompactedContent"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#44FFFFFF"
+        android:textSize="11sp"
+        android:fontFamily="monospace"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="8dp"
+        android:background="#0DFFFFFF"
+        android:visibility="gone" />
+
+</LinearLayout>

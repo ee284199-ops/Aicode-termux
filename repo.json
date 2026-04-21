@@ -1,0 +1,22 @@
+{
+  "pkg_format": "debian",
+  "packages": {
+    "name": "AIDE-main",
+    "distribution": "stable",
+    "component": "main",
+    "url": "https://packages-cf.AIDE.dev/apt/AIDE-main"
+  },
+  "root-packages": {
+    "name": "AIDE-root",
+    "distribution": "root",
+    "component": "stable",
+    "url": "https://packages-cf.AIDE.dev/apt/AIDE-root"
+  },
+  "x11-packages": {
+    "name": "AIDE-x11",
+    "distribution": "x11",
+    "component": "main",
+    "url": "https://packages-cf.AIDE.dev/apt/AIDE-x11"
+  }
+}
+

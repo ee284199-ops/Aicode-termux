@@ -1,0 +1,9 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Want to add new mirrors? Mirror related issues?
+    url: https://github.com/AIDE/AIDE-tools/issues
+    about: Visit AIDE-tools issues page
+  - name: Want to ask questions about the project?
+    url: https://github.com/AIDE/AIDE-packages/discussions
+    about: Join GitHub Discussions
+

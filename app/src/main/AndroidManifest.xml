@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
+
+    <application
+        android:name="${applicationName}"
+        android:label="AIDE"
+        android:theme="@style/Theme.AICode"
+        android:requestLegacyExternalStorage="true"
+        android:largeHeap="true">
+
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libvndksupport.so" android:required="false"/>
+        <uses-native-library android:name="libcdsprpc.so" android:required="false" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Gallery Deep Linking -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.aicode.studio.gallery" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- Disable androidx.startup auto-init (resource ID conflict with mixed library versions) -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            tools:node="remove" />
+
+        <!-- WorkManager 포그라운드 서비스 타입 선언 (dataSync = 0x00000001) -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
+
+        <!-- Engine: Local AI inference service (별도 :inference 프로세스)
+             모델 KV cache(~10817 tokens) + GPU VRAM 사용으로 OOM killer 대상이 될 수 있음.
+             별도 프로세스로 격리하면 추론 중 OOM이 발생해도 UI 프로세스가 살아남아
+             onServiceDisconnected 콜백으로 에러를 표시하고 재연결할 수 있음. -->
+        <service
+            android:name=".engine.AIInferenceService"
+            android:exported="false"
+            android:process=":inference"
+            android:foregroundServiceType="dataSync">
+            <intent-filter>
+                <action android:name="com.aicode.studio.engine.BIND_AI" />
+            </intent-filter>
+        </service>
+
+        <!-- AI Chat screen -->
+        <activity
+            android:name=".AIChatActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AICode"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Engine: Model management screen -->
+        <activity
+            android:name=".engine.ModelSelectActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AICode" />
+
+        <!-- AppAuth: HuggingFace OAuth2 리다이렉트 처리 (Gallery와 동일) -->
+        <activity
+            android:name="net.openid.appauth.RedirectUriReceiverActivity"
+            android:exported="true"
+            tools:node="replace">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${appAuthRedirectScheme}" />
+            </intent-filter>
+        </activity>
+
+        <!-- Engine: Auto-restart on boot -->
+        <receiver
+            android:name=".engine.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <!-- OSS Licenses -->
+        <activity
+            android:name="com.google.android.gms.oss.licenses.OssLicensesMenuActivity"
+            android:exported="true" />
+        <activity
+            android:name="com.google.android.gms.oss.licenses.OssLicensesActivity"
+            android:exported="true" />
+
+        <!-- ═══ Termux Integration ═══ -->
+        <activity
+            android:name=".termux.app.TermuxActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|density|screenLayout|uiMode|keyboard|keyboardHidden|navigation"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize" />
+
+        <service
+            android:name=".termux.app.TermuxService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name=".termux.app.RunCommandService"
+            android:exported="true"
+            android:permission="com.aicode.studio.permission.RUN_COMMAND">
+            <intent-filter>
+                <action android:name="com.aicode.studio.RUN_COMMAND" />
+            </intent-filter>
+        </service>
+
+        <activity
+            android:name=".termux.app.activities.HelpActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".termux.app.activities.SettingsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".termux.shared.activities.ReportActivity"
+            android:exported="false" />
+
+    </application>
+
+    <permission
+        android:name="com.aicode.studio.permission.RUN_COMMAND"
+        android:protectionLevel="dangerous" />
+
+</manifest>

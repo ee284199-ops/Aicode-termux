@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/chatRootLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#121212">
+
+    <!-- ── TOOLBAR ── -->
+    <RelativeLayout
+        android:id="@+id/chatToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="#1E1E1E"
+        android:gravity="center_vertical">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@android:drawable/ic_menu_revert"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="#FFFFFF"
+            android:layout_centerVertical="true"
+            android:contentDescription="뒤로" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AI Chat"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:layout_centerInParent="true" />
+
+        <ImageButton
+            android:id="@+id/btnChatSettings"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@android:drawable/ic_menu_manage"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="#888888"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:contentDescription="설정" />
+    </RelativeLayout>
+
+    <!-- ── STATUS BAR ── -->
+    <TextView
+        android:id="@+id/tvChatStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#0D0D0D"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="6dp"
+        android:text=""
+        android:textColor="#FFA500"
+        android:textSize="11sp"
+        android:gravity="center"
+        android:visibility="gone" />
+
+    <!-- ── SETTINGS PANEL ── -->
+    <ScrollView
+        android:id="@+id/settingsPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#1A1A1A"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <!-- Cloud AI -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Cloud AI (Gemini API)"
+                android:textColor="#007ACC"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:paddingBottom="6dp" />
+
+            <LinearLayout
+                android:id="@+id/chatApiListContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <Button
+                android:id="@+id/btnChatAddApi"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="+ API 키 추가"
+                android:textSize="11sp"
+                android:backgroundTint="#333"
+                android:textColor="#FFF"
+                android:layout_marginTop="4dp" />
+
+            <!-- Divider -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#333"
+                android:layout_marginVertical="12dp" />
+
+            <!-- Local AI -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Local AI (온디바이스)"
+                android:textColor="#007ACC"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:paddingBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <Switch
+                    android:id="@+id/chatSwitchLocalAI"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Local AI 사용"
+                    android:textColor="#AAA"
+                    android:textSize="13sp"
+                    android:thumbTint="#007ACC"
+                    android:trackTint="#333" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <Button
+                    android:id="@+id/btnChatThinking"
+                    android:layout_width="wrap_content"
+                    android:layout_height="30dp"
+                    android:text="Think: ON"
+                    android:textSize="10sp"
+                    android:backgroundTint="#1A3A1A"
+                    android:textColor="#4CAF50"
+                    android:layout_marginEnd="6dp"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/btnChatManageLocalAI"
+                    android:layout_width="wrap_content"
+                    android:layout_height="30dp"
+                    android:text="모델 관리"
+                    android:textSize="11sp"
+                    android:backgroundTint="#2A2A2A"
+                    android:textColor="#888" />
+            </LinearLayout>
+
+            <!-- Divider -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#333"
+                android:layout_marginVertical="12dp" />
+
+            <!-- Reset -->
+            <Button
+                android:id="@+id/btnChatResetMemory"
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:text="대화 기억 초기화"
+                android:textSize="12sp"
+                android:backgroundTint="#3A1A1A"
+                android:textColor="#FF5555" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- ── CHAT MESSAGES ── -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/chatRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:clipToPadding="false" />
+
+    <!-- ── INPUT AREA ── -->
+    <LinearLayout
+        android:id="@+id/chatInputArea"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#1E1E1E"
+        android:paddingHorizontal="8dp"
+        android:paddingTop="6dp"
+        android:orientation="horizontal"
+        android:gravity="bottom">
+
+        <EditText
+            android:id="@+id/etChatInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="메시지 입력..."
+            android:textColorHint="#555"
+            android:textColor="#FFF"
+            android:background="@null"
+            android:padding="10dp"
+            android:textSize="14sp"
+            android:maxLines="5"
+            android:inputType="textMultiLine"
+            android:imeOptions="actionSend" />
+
+        <ImageButton
+            android:id="@+id/btnChatStop"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:src="@android:drawable/ic_media_pause"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="#FF5555"
+            android:visibility="gone"
+            android:contentDescription="중지" />
+
+        <ImageButton
+            android:id="@+id/btnChatSend"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:src="@android:drawable/ic_menu_send"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="#007ACC"
+            android:contentDescription="전송" />
+    </LinearLayout>
+</LinearLayout>

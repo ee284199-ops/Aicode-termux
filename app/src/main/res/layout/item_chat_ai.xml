@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="start"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="4dp">
+
+    <!-- Thinking Section -->
+    <LinearLayout
+        android:id="@+id/thinkingRoot"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="4dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/btnToggleThinking"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="#22FFFFFF"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp"
+            android:clickable="true"
+            android:focusable="true">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Thinks"
+                android:textColor="#88FFFFFF"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/tvThinkingArrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=" ▼"
+                android:textColor="#88FFFFFF"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvThinking"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="#11FFFFFF"
+            android:textColor="#AAAAAA"
+            android:padding="8dp"
+            android:textSize="12sp"
+            android:maxWidth="280dp"
+            android:visibility="gone"
+            android:fontFamily="monospace" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvMessage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_bubble_ai"
+        android:textColor="#E0E0E0"
+        android:padding="12dp"
+        android:textSize="14sp"
+        android:maxWidth="280dp"
+        android:textIsSelectable="true"
+        android:fontFamily="monospace" />
+</LinearLayout>
