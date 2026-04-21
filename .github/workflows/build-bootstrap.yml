@@ -33,7 +33,7 @@ jobs:
           ./scripts/generate-bootstraps.sh --architectures ${{ matrix.arch }}
 
       - name: Upload bootstrap artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bootstrap-${{ matrix.arch }}
           path: bootstrap-${{ matrix.arch }}.zip
