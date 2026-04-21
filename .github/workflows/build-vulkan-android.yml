@@ -234,7 +234,7 @@ jobs:
       # ── 9. Create GitHub Release (only on manual trigger) ─────────────────────
       - name: Create Release
         if: github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: vulkan-build-${{ github.run_number }}
           name: "libggml-vulkan.so (arm64-v8a) — build #${{ github.run_number }}"
