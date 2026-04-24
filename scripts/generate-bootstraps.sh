@@ -253,6 +253,7 @@ add_termux_bootstrap_second_stage_files() {
 	echo "[*] Adding termux bootstrap second stage files..."
 
 	mkdir -p "${BOOTSTRAP_ROOTFS}/${TERMUX_BOOTSTRAP__BOOTSTRAP_SECOND_STAGE_DIR}"
+	mkdir -p "${BOOTSTRAP_ROOTFS}/${TERMUX__PREFIX__PROFILE_D_DIR}"
 	sed -e "s|@TERMUX_PREFIX@|${TERMUX_PREFIX}|g" \
 		-e "s|@TERMUX_BOOTSTRAP__BOOTSTRAP_SECOND_STAGE_DIR@|${TERMUX_BOOTSTRAP__BOOTSTRAP_SECOND_STAGE_DIR}|g" \
 		-e "s|@TERMUX_BOOTSTRAP__BOOTSTRAP_SECOND_STAGE_ENTRY_POINT_SUBFILE@|${TERMUX_BOOTSTRAP__BOOTSTRAP_SECOND_STAGE_ENTRY_POINT_SUBFILE}|g" \
@@ -265,7 +266,6 @@ add_termux_bootstrap_second_stage_files() {
 	chmod 700 "${BOOTSTRAP_ROOTFS}/${TERMUX_BOOTSTRAP__BOOTSTRAP_SECOND_STAGE_DIR}/$TERMUX_BOOTSTRAP__BOOTSTRAP_SECOND_STAGE_ENTRY_POINT_SUBFILE"
 
 	# TODO: Remove it when Termux app supports `pacman` bootstraps installation.
-	mkdir -p "${BOOTSTRAP_ROOTFS}/${TERMUX__PREFIX__PROFILE_D_DIR}"
 	sed -e "s|@TERMUX_PREFIX@|${TERMUX_PREFIX}|g" \
 		-e "s|@TERMUX__PREFIX__PROFILE_D_DIR@|${TERMUX__PREFIX__PROFILE_D_DIR}|g" \
 		-e "s|@TERMUX_BOOTSTRAP__BOOTSTRAP_SECOND_STAGE_DIR@|${TERMUX_BOOTSTRAP__BOOTSTRAP_SECOND_STAGE_DIR}|g" \
@@ -288,6 +288,11 @@ create_bootstrap_archive() {
 			echo "$(readlink "$link")←${link}" >> SYMLINKS.txt
 			rm -f "$link"
 		done < <(find . -type l -print0)
+
+		# Patch any absolute com.termux paths in SYMLINKS.txt when using a custom package name.
+		if [ "${TERMUX_APP__PACKAGE_NAME}" != "com.termux" ] && [ -f SYMLINKS.txt ]; then
+			sed -i "s|/data/data/com\\.termux/|/data/data/${TERMUX_APP__PACKAGE_NAME}/|g" SYMLINKS.txt
+		fi
 
 		zip -r9 "${BOOTSTRAP_TMPDIR}/bootstrap-${1}.zip" ./*
 	)
@@ -435,6 +440,13 @@ for package_arch in "${TERMUX_ARCHITECTURES[@]}"; do
 		fi
 	fi
 	mkdir -p "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}/tmp"
+
+	# When using a custom package name (not com.termux), .deb files extract their
+	# files under the hardcoded com.termux path inside the rootfs. Create a symlink
+	# so those extracted files land in the correct custom package directory instead.
+	if [ "${TERMUX_APP__PACKAGE_NAME}" != "com.termux" ]; then
+		ln -sfn "${TERMUX_APP__PACKAGE_NAME}" "${BOOTSTRAP_ROOTFS}/data/data/com.termux"
+	fi
 
 	# Read package metadata.
 	unset PACKAGE_METADATA

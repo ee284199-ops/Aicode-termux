@@ -30,6 +30,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -211,7 +212,7 @@ final class TermuxInstaller {
                     final byte[] buffer = new byte[8096];
                     final List<Pair<String, String>> symlinks = new ArrayList<>(50);
 
-                    final byte[] zipBytes = loadZipBytes();
+                    final byte[] zipBytes = loadZipBytes(activity);
                     try (ZipInputStream zipInput = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
                         ZipEntry zipEntry;
                         while ((zipEntry = zipInput.getNextEntry()) != null) {
@@ -251,7 +252,7 @@ final class TermuxInstaller {
                                     }
                                     if (zipEntryName.startsWith("bin/") || zipEntryName.startsWith("libexec") ||
                                         zipEntryName.startsWith("lib/apt/apt-helper") || zipEntryName.startsWith("lib/apt/methods") ||
-                                        zipEntryName.equals("etc/termux/bootstrap/termux-bootstrap-second-stage.sh")) {
+                                        zipEntryName.endsWith("/termux-bootstrap-second-stage.sh")) {
                                         //noinspection OctalInteger
                                         Os.chmod(targetFile.getAbsolutePath(), 0700);
                                     }
@@ -292,9 +293,20 @@ final class TermuxInstaller {
                     }
 
                     // Run Termux bootstrap second stage.
+                    // Try legacy path, new standard path, and derived path based on package name
+                    // (e.g. com.aicode.studio → etc/aicode/termux-bootstrap/second-stage/)
                     String termuxBootstrapSecondStageFile = TERMUX_PREFIX_DIR_PATH + "/etc/termux/bootstrap/termux-bootstrap-second-stage.sh";
                     if (!FileUtils.fileExists(termuxBootstrapSecondStageFile, false)) {
-                        Logger.logInfo(LOG_TAG, "Not running Termux bootstrap second stage since script not found at \"" + termuxBootstrapSecondStageFile + "\" path.");
+                        termuxBootstrapSecondStageFile = TERMUX_PREFIX_DIR_PATH + "/etc/termux/termux-bootstrap/second-stage/termux-bootstrap-second-stage.sh";
+                    }
+                    if (!FileUtils.fileExists(termuxBootstrapSecondStageFile, false)) {
+                        String[] pkgParts = TermuxConstants.TERMUX_PACKAGE_NAME.split("\\.");
+                        if (pkgParts.length >= 2) {
+                            termuxBootstrapSecondStageFile = TERMUX_PREFIX_DIR_PATH + "/etc/" + pkgParts[1] + "/termux-bootstrap/second-stage/termux-bootstrap-second-stage.sh";
+                        }
+                    }
+                    if (!FileUtils.fileExists(termuxBootstrapSecondStageFile, false)) {
+                        Logger.logInfo(LOG_TAG, "Not running Termux bootstrap second stage since script not found.");
                     } else if (!FileUtils.fileExists(TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + "/bash", true)) {
                         Logger.logInfo(LOG_TAG, "Not running Termux bootstrap second stage since bash not found.");
                     } else {
@@ -748,9 +760,24 @@ final class TermuxInstaller {
         }
     }
 
-    public static byte[] loadZipBytes() throws Exception {
+    public static byte[] loadZipBytes(Context context) throws Exception {
         String arch = getBootstrapArch();
-        String downloadUrl = "https://github.com/termux/termux-packages/releases/latest/download/bootstrap-" + arch + ".zip";
+        String assetName = "bootstrap-" + arch + ".zip";
+
+        try {
+            InputStream in = context.getAssets().open(assetName);
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            byte[] chunk = new byte[8192];
+            int read;
+            while ((read = in.read(chunk)) != -1)
+                buffer.write(chunk, 0, read);
+            Logger.logInfo(LOG_TAG, "Loaded bootstrap from assets: " + assetName);
+            return buffer.toByteArray();
+        } catch (IOException e) {
+            Logger.logInfo(LOG_TAG, "Bootstrap not found in assets, downloading...");
+        }
+
+        String downloadUrl = "https://github.com/ee284199-ops/Aicode-termux/releases/latest/download/bootstrap-" + arch + ".zip";
         Logger.logInfo(LOG_TAG, "Downloading bootstrap from: " + downloadUrl);
 
         HttpURLConnection connection = (HttpURLConnection) new URL(downloadUrl).openConnection();
