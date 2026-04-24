@@ -9,7 +9,7 @@ permissions: {} # none
 
 jobs:
   check-repository-health:
-    if: github.repository == 'AIDE/AIDE-packages'
+    if: github.repository == 'ee284199-ops/Aicode-termux'
     runs-on: ubuntu-slim
     steps:
       - name: Clone repository
