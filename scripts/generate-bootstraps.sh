@@ -441,13 +441,6 @@ for package_arch in "${TERMUX_ARCHITECTURES[@]}"; do
 	fi
 	mkdir -p "${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}/tmp"
 
-	# When using a custom package name (not com.termux), .deb files extract their
-	# files under the hardcoded com.termux path inside the rootfs. Create a symlink
-	# so those extracted files land in the correct custom package directory instead.
-	if [ "${TERMUX_APP__PACKAGE_NAME}" != "com.termux" ]; then
-		ln -sfn "${TERMUX_APP__PACKAGE_NAME}" "${BOOTSTRAP_ROOTFS}/data/data/com.termux"
-	fi
-
 	# Read package metadata.
 	unset PACKAGE_METADATA
 	declare -A PACKAGE_METADATA
@@ -508,6 +501,19 @@ for package_arch in "${TERMUX_ARCHITECTURES[@]}"; do
 		pull_package "$add_pkg"
 	done
 	unset add_pkg
+
+	# When using a custom package name, .deb packages extract files under the
+	# hardcoded com.termux path. GNU tar replaces symlinks with real directories,
+	# so we use a post-extraction merge: copy all files from com.termux into the
+	# custom package directory, then remove the now-redundant com.termux tree.
+	if [ "${TERMUX_APP__PACKAGE_NAME}" != "com.termux" ] && \
+	   [ -d "${BOOTSTRAP_ROOTFS}/data/data/com.termux" ] && \
+	   [ ! -L "${BOOTSTRAP_ROOTFS}/data/data/com.termux" ]; then
+		echo "[*] Merging com.termux packages into ${TERMUX_APP__PACKAGE_NAME}..."
+		cp -a "${BOOTSTRAP_ROOTFS}/data/data/com.termux/." \
+		      "${BOOTSTRAP_ROOTFS}/data/data/${TERMUX_APP__PACKAGE_NAME}/"
+		rm -rf "${BOOTSTRAP_ROOTFS}/data/data/com.termux"
+	fi
 
 	# Add termux bootstrap second stage files
 	add_termux_bootstrap_second_stage_files "$package_arch"
