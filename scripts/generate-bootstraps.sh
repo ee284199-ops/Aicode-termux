@@ -515,6 +515,50 @@ for package_arch in "${TERMUX_ARCHITECTURES[@]}"; do
 		rm -rf "${BOOTSTRAP_ROOTFS}/data/data/com.termux"
 	fi
 
+	# For custom package names: install a termux-fix-pkg-paths script and an
+	# apt DPkg::Post-Invoke hook so that every future `pkg install` automatically
+	# patches hardcoded com.termux shebangs in newly installed executables.
+	if [ "${TERMUX_APP__PACKAGE_NAME}" != "com.termux" ]; then
+		echo "[*] Installing apt path-fix hook for ${TERMUX_APP__PACKAGE_NAME}..."
+		_hook_prefix="${BOOTSTRAP_ROOTFS}/data/data/${TERMUX_APP__PACKAGE_NAME}/files/usr"
+
+		# Write the fix script into bootstrap bin/
+		mkdir -p "${_hook_prefix}/bin"
+		cat > "${_hook_prefix}/bin/termux-fix-pkg-paths" << 'HOOKEOF'
+#!/data/data/__PKG__/files/usr/bin/bash
+# Patch hardcoded com.termux paths in scripts installed by pkg/apt.
+# Invoked automatically after each dpkg operation via apt.conf.d hook.
+_PKG="__PKG__"
+_OLD="com.termux"
+[ "$_PKG" = "$_OLD" ] && exit 0
+_PFX="/data/data/${_PKG}/files/usr"
+# Patch text executables in bin/ (skip ELF binaries via magic-byte check)
+find "${_PFX}/bin" -maxdepth 1 -type f | while IFS= read -r _f; do
+    _hdr=$(dd if="$_f" bs=4 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')
+    [ "$_hdr" = "7f454c46" ] && continue
+    grep -q "${_OLD}" "$_f" 2>/dev/null || continue
+    sed -i "s|/data/data/${_OLD}/|/data/data/${_PKG}/|g" "$_f"
+done
+# Patch dpkg maintenance scripts (postinst, preinst, postrm, prerm)
+find "${_PFX}/var/lib/dpkg/info" -maxdepth 1 -type f \
+    \( -name "*.postinst" -o -name "*.preinst" -o -name "*.postrm" -o -name "*.prerm" \) | \
+    while IFS= read -r _f; do
+        grep -q "${_OLD}" "$_f" 2>/dev/null && \
+        sed -i "s|/data/data/${_OLD}/|/data/data/${_PKG}/|g" "$_f"
+    done
+HOOKEOF
+		# Substitute the placeholder with the real package name
+		sed -i "s|__PKG__|${TERMUX_APP__PACKAGE_NAME}|g" \
+			"${_hook_prefix}/bin/termux-fix-pkg-paths"
+		chmod 755 "${_hook_prefix}/bin/termux-fix-pkg-paths"
+
+		# Write the apt.conf.d hook entry
+		mkdir -p "${_hook_prefix}/etc/apt/apt.conf.d"
+		printf 'DPkg::Post-Invoke { "/data/data/%s/files/usr/bin/termux-fix-pkg-paths"; };\n' \
+			"${TERMUX_APP__PACKAGE_NAME}" \
+			> "${_hook_prefix}/etc/apt/apt.conf.d/99-fix-termux-paths"
+	fi
+
 	# Add termux bootstrap second stage files
 	add_termux_bootstrap_second_stage_files "$package_arch"
 

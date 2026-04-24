@@ -88,7 +88,7 @@ final class TermuxInstaller {
      *   v14 — remove dummy gpgv and use real GPG keys
      *   v15 — restore high-compatibility gpgv script to fix "gpgv not installed" error
      */
-    private static final String SHEBANG_PATCH_MARKER_NAME = ".aicode_patched_v15";
+    private static final String SHEBANG_PATCH_MARKER_NAME = ".aicode_patched_v16";
     private static final File   SHEBANG_PATCH_MARKER      = new File(TERMUX_PREFIX_DIR_PATH, SHEBANG_PATCH_MARKER_NAME);
 
     /** Performs bootstrap setup if necessary. */

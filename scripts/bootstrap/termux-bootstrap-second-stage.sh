@@ -210,6 +210,17 @@ run_package_postinst_maintainer_scripts() {
 				# assigned here, like `dpkg` does.
 				chmod u+x "$script_path" || return $?
 
+				# Patch hardcoded com.termux paths in the postinst script before running it.
+				# This is a safety net for when the app package name differs from com.termux —
+				# the TermuxInstaller should already have patched these, but this handles cases
+				# where the script was freshly installed (e.g. during second-stage dpkg configure).
+				if [ "${TERMUX_PREFIX}" != "/data/data/com.termux/files/usr" ]; then
+					_pkg_data_dir="${TERMUX_PREFIX%%/files/usr}"
+					if grep -q "com\.termux" "$script_path" 2>/dev/null; then
+						sed -i "s|/data/data/com\\.termux/|${_pkg_data_dir}/|g" "$script_path" 2>/dev/null || true
+					fi
+				fi
+
 				(
 					# As per `dpkg` `script.c`:
 					# >Switch to a known good directory to give the
