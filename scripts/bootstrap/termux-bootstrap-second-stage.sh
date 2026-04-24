@@ -173,11 +173,22 @@ run_package_postinst_maintainer_scripts() {
 		if [ -d "${TERMUX_PREFIX}/var/lib/dpkg/info" ]; then
 			local dpkg_version
 
-			dpkg_version=$(dpkg --version | head -n 1 | sed -E 's/.*version ([^ ]+) .*/\1/')
+			dpkg_version=$(dpkg --version 2>/dev/null | head -n 1 | sed -E 's/.*version ([^ ]+) .*/\1/')
 			if [[ ! "$dpkg_version" =~ ^[0-9].*$ ]]; then
-				log_error "Failed to find the 'dpkg' version"
-				log_error "$dpkg_version"
-				return 1
+				if [ "${TERMUX_PREFIX}" = "/data/data/com.termux/files/usr" ]; then
+					log_error "Failed to find the 'dpkg' version"
+					log_error "$dpkg_version"
+					return 1
+				else
+					# For custom package names, dpkg --version fails with "Permission denied"
+					# when it tries to open its compiled-in sysconfdir (/data/data/com.termux/...).
+					# libtermux-exec only intercepts execve(), not open()/opendir() syscalls,
+					# so the hardcoded sysconfdir path cannot be redirected at the SO level.
+					# Use a safe fallback version — the value only affects which --force flags
+					# are passed; 1.22.0 is conservative and universally safe.
+					log "Note: dpkg --version unavailable (com.termux sysconfdir inaccessible), using fallback version."
+					dpkg_version="1.22.0"
+				fi
 			fi
 
 			# Check `dpkg --force-help` for current defaults.
