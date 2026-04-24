@@ -1,0 +1,5 @@
+/build
+
+# Bootstrap zips are downloaded at runtime from GitHub Releases.
+# Do not commit these — they are large binaries and served via release assets.
+/src/main/assets/bootstrap-*.zip
