@@ -12,8 +12,10 @@ import com.aicode.studio.ai.gallery.data.KEY_MODEL_DOWNLOAD_REMAINING_MS
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
 
@@ -58,6 +60,34 @@ class ModelManagerViewModel @Inject constructor(
             activeModelId = modelManager.activeModelId,
             executionMode = modelManager.executionMode
         )
+        // Reconnect to any downloads already in progress.
+        // When the user navigates away and back, the Activity/ViewModel is recreated
+        // but WorkManager keeps running.  Without this, the UI loses download progress
+        // and shows the "Download" button again even though a download is ongoing.
+        viewModelScope.launch { reconnectActiveDownloads() }
+    }
+
+    /**
+     * On ViewModel init, query WorkManager for each known model and reattach an
+     * observer if a download is already RUNNING or ENQUEUED.  This restores the
+     * progress UI after the user navigates away (back press / home) and returns.
+     */
+    private suspend fun reconnectActiveDownloads() {
+        InferenceConfig.ALL_MODELS.forEach { model ->
+            val infos = workManager.getWorkInfosForUniqueWorkFlow(model.id).first()
+            val active = infos.firstOrNull {
+                it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED
+            } ?: return@forEach
+            // Immediately restore downloading state so the UI doesn't flash "Download"
+            updateDownloadState(model.id, DownloadState(
+                isDownloading = true,
+                totalBytes = model.expectedSizeBytes,
+                receivedBytes = active.progress.getLong(KEY_MODEL_DOWNLOAD_RECEIVED_BYTES, 0L),
+                bytesPerSecond = active.progress.getLong(KEY_MODEL_DOWNLOAD_RATE, 0L),
+                remainingMs = active.progress.getLong(KEY_MODEL_DOWNLOAD_REMAINING_MS, 0L)
+            ))
+            observeDownload(model.id, active.id, model.expectedSizeBytes)
+        }
     }
 
     fun selectModel(modelId: String) {
