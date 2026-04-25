@@ -89,8 +89,9 @@ final class TermuxInstaller {
      *   v15 — restore high-compatibility gpgv script to fix "gpgv not installed" error
      *   v16 — (no apt.conf Dir::Bin::Methods; triggering v17 re-patch)
      *   v17 — add Dir::Bin::Methods to apt.conf so apt finds its HTTP method driver
+     *   v18 — add Dir::Bin::gpgv to apt.conf; fix termux-change-repo [trusted=yes] for deb [arch=…] lines
      */
-    private static final String SHEBANG_PATCH_MARKER_NAME = ".aicode_patched_v17";
+    private static final String SHEBANG_PATCH_MARKER_NAME = ".aicode_patched_v18";
     private static final File   SHEBANG_PATCH_MARKER      = new File(TERMUX_PREFIX_DIR_PATH, SHEBANG_PATCH_MARKER_NAME);
 
     /** Performs bootstrap setup if necessary. */
@@ -588,6 +589,12 @@ final class TermuxInstaller {
             // apt looks up the compiled-in path (/data/data/com.termux/…) unless we override
             // Dir::Bin::Methods with an absolute path here.
             "Dir::Bin::Methods \"" + pfx + "/lib/apt/methods/\";\n" +
+            // Point apt to our custom gpgv bypass script.  Without this, apt uses the
+            // compiled-in path /data/data/com.termux/…/bin/gpgv which fails with EPERM
+            // (different app's private data) when the real Termux app is installed.
+            // Our bypass script always returns GOODSIG so repos are accepted without a
+            // valid keyring.  Run `pkg install termux-keyring` to restore real checking.
+            "Dir::Bin::gpgv \"" + pfx + "/bin/gpgv\";\n" +
             "// Allow repos without valid GPG signatures (bootstrap keyring may not yet be installed).\n" +
             "// Run `pkg install termux-keyring` to enable full signature verification.\n" +
             "Acquire::AllowInsecureRepositories \"true\";\n" +
@@ -750,10 +757,19 @@ final class TermuxInstaller {
             for (byte b : raw) if (b == 0) return; // binary — skip
 
             String content = new String(raw, "UTF-8");
-            // Replace any "deb " NOT already followed by "[" with "deb [trusted=yes] "
-            // This catches cases like cat << EOF ... deb http... or echo deb http...
+            // Insert [trusted=yes] into every "deb" line that doesn't already have it.
+            // Two cases:
+            //   deb URL …         → deb [trusted=yes] URL …
+            //   deb [arch=…] URL  → deb [arch=… trusted=yes] URL
+            // The lookbehind (?<!trusted=yes) prevents double-insertion.
             String patched = content
-                .replaceAll("deb (?!\\x5b)", "deb [trusted=yes] ");
+                // Case 1: "deb [existing_opts]" → "deb [existing_opts trusted=yes]"
+                // Matches deb [...] where the ] is NOT immediately preceded by "trusted=yes"
+                .replaceAll("deb \\[([^\\]]*?)(?<!trusted=yes)\\]", "deb [$1 trusted=yes]")
+                // Case 2: "deb URL" (no brackets at all) → "deb [trusted=yes] URL"
+                .replaceAll("deb (?!\\[)", "deb [trusted=yes] ");
+            // Tidy up accidental "deb [ trusted=yes]" → "deb [trusted=yes]" (empty bracket case)
+            patched = patched.replace("deb [ trusted=yes]", "deb [trusted=yes]");
             
             if (patched.equals(content)) return;
 

@@ -143,31 +143,37 @@ public class TermuxShellUtils {
             environment.add("DPKG_DATADIR="  + TermuxConstants.TERMUX_PREFIX_DIR_PATH + "/share/dpkg");
             environment.add("APT_CONFIG="    + TermuxConstants.TERMUX_PREFIX_DIR_PATH + "/etc/apt/apt.conf");
 
-            // LD_PRELOAD: libtermux-exec remaps hardcoded /data/data/com.termux/ paths to our
-            // actual prefix.  We prefer libtermux-exec-direct-ld-preload.so (installed by the
-            // termux-exec package during bootstrap second-stage) over the APK-bundled proxy
-            // library because the "direct" library intercepts ALL path-based syscalls —
-            // open(), openat(), opendir(), access(), stat(), exec*() — whereas the proxy only
-            // intercepts exec*().  Without the direct library:
-            //   • bash tries to source /data/data/com.termux/files/usr/etc/profile → EPERM
-            //   • dpkg tries to opendir /data/data/com.termux/files/usr/etc/dpkg/dpkg.cfg.d → EPERM
-            //   • apt checks access(/data/data/com.termux/files/usr/lib/apt/methods/http) → ENOENT
-            // The direct library reads TERMUX_APP__DATA_DIR + TERMUX_APP__LEGACY_DATA_DIR to know
-            // the redirect (com.termux → com.aicode.studio).  Fall back to the APK proxy library
-            // (exec* only) when the bootstrap hasn't been installed yet.
+            // LD_PRELOAD: libtermux-exec intercepts hardcoded /data/data/com.termux/ paths.
+            //
+            // The termux-exec package ships TWO libraries:
+            //   libtermux-exec-ld-preload.so   — PROXY: exports exec*() interceptors and in its
+            //                                    own constructors dlopen()s the direct library.
+            //   libtermux-exec-direct-ld-preload.so — DIRECT: installed by the proxy via dlopen();
+            //                                    patches GOT entries to intercept ALL path syscalls
+            //                                    (open, openat, opendir, access, stat, exec*…).
+            //
+            // The PROXY must be the LD_PRELOAD target.  The direct library does NOT work when
+            // used as LD_PRELOAD standalone — it relies on the proxy's constructor to dlopen() it
+            // (after all other libraries are mapped) so that its GOT patching is applied to
+            // a fully-loaded address space.  Using the direct library directly as LD_PRELOAD
+            // produces zero interception (confirmed experimentally).
+            //
+            // Priority:
+            //   1. libtermux-exec-ld-preload.so from bootstrap lib/ (proxy → loads direct lib)
+            //   2. libtermux-exec.so from APK jniLibs (exec*-only fallback for pre-bootstrap)
             try {
                 String nativeLibDir = currentPackageContext.getApplicationInfo().nativeLibraryDir;
-                // Prefer the full-syscall-interceptor from the bootstrap (installed by termux-exec).
-                java.io.File directLib = new java.io.File(TermuxConstants.TERMUX_LIB_PREFIX_DIR_PATH,
-                    "libtermux-exec-direct-ld-preload.so");
-                // Fall back to the exec-only proxy bundled in APK jniLibs.
-                java.io.File proxyLib = new java.io.File(nativeLibDir, "libtermux-exec.so");
-                java.io.File ldPreloadLib = directLib.exists() ? directLib : proxyLib;
+                // The bootstrap's proxy library (installed by the termux-exec package).
+                java.io.File bootstrapProxy = new java.io.File(TermuxConstants.TERMUX_LIB_PREFIX_DIR_PATH,
+                    "libtermux-exec-ld-preload.so");
+                // The exec-only fallback bundled in APK jniLibs.
+                java.io.File apkExecOnly = new java.io.File(nativeLibDir, "libtermux-exec.so");
+                java.io.File ldPreloadLib = bootstrapProxy.exists() ? bootstrapProxy : apkExecOnly;
                 if (ldPreloadLib.exists()) {
                     environment.add("LD_PRELOAD=" + ldPreloadLib.getAbsolutePath());
                     Logger.logInfo("TermuxShellUtils", "LD_PRELOAD → " + ldPreloadLib.getAbsolutePath());
                 } else {
-                    Logger.logWarn("TermuxShellUtils", "libtermux-exec not found at " + directLib + " or " + proxyLib);
+                    Logger.logWarn("TermuxShellUtils", "libtermux-exec not found at " + bootstrapProxy + " or " + apkExecOnly);
                 }
             } catch (Exception e) {
                 Logger.logWarn("TermuxShellUtils", "Could not set LD_PRELOAD: " + e.getMessage());
