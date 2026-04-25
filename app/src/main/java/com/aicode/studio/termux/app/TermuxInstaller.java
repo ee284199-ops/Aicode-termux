@@ -87,8 +87,10 @@ final class TermuxInstaller {
      *   v13 — ensure execute permissions on patched scripts (fixes dpkg .postinst)
      *   v14 — remove dummy gpgv and use real GPG keys
      *   v15 — restore high-compatibility gpgv script to fix "gpgv not installed" error
+     *   v16 — (no apt.conf Dir::Bin::Methods; triggering v17 re-patch)
+     *   v17 — add Dir::Bin::Methods to apt.conf so apt finds its HTTP method driver
      */
-    private static final String SHEBANG_PATCH_MARKER_NAME = ".aicode_patched_v16";
+    private static final String SHEBANG_PATCH_MARKER_NAME = ".aicode_patched_v17";
     private static final File   SHEBANG_PATCH_MARKER      = new File(TERMUX_PREFIX_DIR_PATH, SHEBANG_PATCH_MARKER_NAME);
 
     /** Performs bootstrap setup if necessary. */
@@ -582,6 +584,10 @@ final class TermuxInstaller {
             "Dir::Cache \"" + pfx + "/var/cache/apt/\";\n" +
             "Dir::Cache::Archives \"" + pfx + "/var/cache/apt/archives/\";\n" +
             "Dir::Bin::dpkg \"" + pfx + "/bin/dpkg\";\n" +
+            // apt method drivers (http, https, …) live in lib/apt/methods/ under our prefix.
+            // apt looks up the compiled-in path (/data/data/com.termux/…) unless we override
+            // Dir::Bin::Methods with an absolute path here.
+            "Dir::Bin::Methods \"" + pfx + "/lib/apt/methods/\";\n" +
             "// Allow repos without valid GPG signatures (bootstrap keyring may not yet be installed).\n" +
             "// Run `pkg install termux-keyring` to enable full signature verification.\n" +
             "Acquire::AllowInsecureRepositories \"true\";\n" +

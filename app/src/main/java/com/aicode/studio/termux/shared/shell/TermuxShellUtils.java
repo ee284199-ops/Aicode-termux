@@ -74,8 +74,14 @@ public class TermuxShellUtils {
             }
 
             if (applicationInfo != null) {
-                environment.add("TERMUX_APP__DATA_DIR=" + applicationInfo.dataDir);
-                environment.add("TERMUX_APP__LEGACY_DATA_DIR=" + "/data/data/" + applicationInfo.packageName);
+                // Use the /data/data/ path (not /data/user/0/ which dataDir may return on API 29+)
+                // so that the value is consistent with TERMUX_PREFIX_DIR_PATH and the bootstrap.
+                environment.add("TERMUX_APP__DATA_DIR=" + TermuxConstants.TERMUX_INTERNAL_PRIVATE_APP_DATA_DIR_PATH);
+                // TERMUX_APP__LEGACY_DATA_DIR is the compiled-in prefix that bootstrap binaries
+                // reference (i.e. what was hard-coded at build time).  Bootstrap packages from
+                // the official Termux repository are always compiled for com.termux, so we
+                // hard-code that here.  libtermux-exec uses this to know which path to redirect.
+                environment.add("TERMUX_APP__LEGACY_DATA_DIR=/data/data/com.termux");
 
                 environment.add("TERMUX_APP__SE_FILE_CONTEXT=" + SELinuxUtils.getFileContext(applicationInfo.dataDir));
 
@@ -88,7 +94,9 @@ public class TermuxShellUtils {
             // Ignore
         }
 
+        // Both names used by different versions of libtermux-exec; set both for compatibility.
         environment.add("TERMUX__ROOTFS_DIR=" + TermuxConstants.TERMUX_FILES_DIR_PATH);
+        environment.add("TERMUX__ROOTFS=" + TermuxConstants.TERMUX_FILES_DIR_PATH);
         environment.add("HOME=" + TermuxConstants.TERMUX_HOME_DIR_PATH);
         environment.add("TERMUX__HOME=" + TermuxConstants.TERMUX_HOME_DIR_PATH);
         environment.add("PREFIX=" + TermuxConstants.TERMUX_PREFIX_DIR_PATH);
@@ -135,16 +143,31 @@ public class TermuxShellUtils {
             environment.add("DPKG_DATADIR="  + TermuxConstants.TERMUX_PREFIX_DIR_PATH + "/share/dpkg");
             environment.add("APT_CONFIG="    + TermuxConstants.TERMUX_PREFIX_DIR_PATH + "/etc/apt/apt.conf");
 
-            // LD_PRELOAD: libtermux-exec remaps hardcoded /data/data/com.termux/ paths
-            // (in bootstrap script shebangs and bodies) to our actual package prefix at
-            // exec() call time.  With targetSdkVersion=28 the exec itself needs no tricks.
+            // LD_PRELOAD: libtermux-exec remaps hardcoded /data/data/com.termux/ paths to our
+            // actual prefix.  We prefer libtermux-exec-direct-ld-preload.so (installed by the
+            // termux-exec package during bootstrap second-stage) over the APK-bundled proxy
+            // library because the "direct" library intercepts ALL path-based syscalls —
+            // open(), openat(), opendir(), access(), stat(), exec*() — whereas the proxy only
+            // intercepts exec*().  Without the direct library:
+            //   • bash tries to source /data/data/com.termux/files/usr/etc/profile → EPERM
+            //   • dpkg tries to opendir /data/data/com.termux/files/usr/etc/dpkg/dpkg.cfg.d → EPERM
+            //   • apt checks access(/data/data/com.termux/files/usr/lib/apt/methods/http) → ENOENT
+            // The direct library reads TERMUX_APP__DATA_DIR + TERMUX_APP__LEGACY_DATA_DIR to know
+            // the redirect (com.termux → com.aicode.studio).  Fall back to the APK proxy library
+            // (exec* only) when the bootstrap hasn't been installed yet.
             try {
                 String nativeLibDir = currentPackageContext.getApplicationInfo().nativeLibraryDir;
-                java.io.File termuxExecLib = new java.io.File(nativeLibDir, "libtermux-exec.so");
-                if (termuxExecLib.exists()) {
-                    environment.add("LD_PRELOAD=" + termuxExecLib.getAbsolutePath());
+                // Prefer the full-syscall-interceptor from the bootstrap (installed by termux-exec).
+                java.io.File directLib = new java.io.File(TermuxConstants.TERMUX_LIB_PREFIX_DIR_PATH,
+                    "libtermux-exec-direct-ld-preload.so");
+                // Fall back to the exec-only proxy bundled in APK jniLibs.
+                java.io.File proxyLib = new java.io.File(nativeLibDir, "libtermux-exec.so");
+                java.io.File ldPreloadLib = directLib.exists() ? directLib : proxyLib;
+                if (ldPreloadLib.exists()) {
+                    environment.add("LD_PRELOAD=" + ldPreloadLib.getAbsolutePath());
+                    Logger.logInfo("TermuxShellUtils", "LD_PRELOAD → " + ldPreloadLib.getAbsolutePath());
                 } else {
-                    Logger.logWarn("TermuxShellUtils", "libtermux-exec.so not found at: " + termuxExecLib);
+                    Logger.logWarn("TermuxShellUtils", "libtermux-exec not found at " + directLib + " or " + proxyLib);
                 }
             } catch (Exception e) {
                 Logger.logWarn("TermuxShellUtils", "Could not set LD_PRELOAD: " + e.getMessage());
