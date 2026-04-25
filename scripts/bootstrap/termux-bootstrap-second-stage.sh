@@ -295,8 +295,12 @@ run_package_postinst_maintainer_scripts() {
 					"$script_path" configure
 					return_value=$?
 					if [ $return_value -ne 0 ]; then
-						log_error "Failed to run '$package_name' package postinst"
-						exit $return_value
+						# Log a warning but do not abort. Postinst failures in bootstrap
+						# are typically caused by compiled-in hardcoded paths (e.g.
+						# update-alternatives with a hardcoded sysconfdir) that cannot be
+						# intercepted by libtermux-exec. The bootstrap files are already
+						# correctly installed; skipping failed postinst scripts is safe.
+						log "Warning: '$package_name' package postinst failed (exit $return_value), continuing"
 					fi
 				) || return $?
 

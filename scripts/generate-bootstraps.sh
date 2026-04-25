@@ -557,6 +557,26 @@ HOOKEOF
 		printf 'DPkg::Post-Invoke { "/data/data/%s/files/usr/bin/termux-fix-pkg-paths"; };\n' \
 			"${TERMUX_APP__PACKAGE_NAME}" \
 			> "${_hook_prefix}/etc/apt/apt.conf.d/99-fix-termux-paths"
+
+		# Wrap update-alternatives to redirect the hardcoded com.termux
+		# altdir and admindir to our actual prefix.  The binary is compiled
+		# with sysconfdir=/data/data/com.termux/…, so without this wrapper
+		# every call to update-alternatives fails with "Permission denied"
+		# when the real Termux app is installed on the same device.
+		_ua="${_hook_prefix}/bin/update-alternatives"
+		if [ -f "${_ua}" ] && [ ! -L "${_ua}" ]; then
+			echo "[*] Wrapping update-alternatives for ${TERMUX_APP__PACKAGE_NAME}..."
+			mv "${_ua}" "${_ua}.real"
+			cat > "${_ua}" << 'UAEOF'
+#!/data/data/__PKG__/files/usr/bin/bash
+_p="/data/data/__PKG__/files/usr"
+exec "${_p}/bin/update-alternatives.real" \
+    --admindir "${_p}/var/lib/dpkg/alternatives" \
+    --altdir "${_p}/etc/alternatives" "$@"
+UAEOF
+			sed -i "s|__PKG__|${TERMUX_APP__PACKAGE_NAME}|g" "${_ua}"
+			chmod 755 "${_ua}"
+		fi
 	fi
 
 	# Add termux bootstrap second stage files
