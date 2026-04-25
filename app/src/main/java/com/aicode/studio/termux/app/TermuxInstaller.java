@@ -92,8 +92,11 @@ final class TermuxInstaller {
      *   v18 — add Dir::Bin::gpgv to apt.conf; fix termux-change-repo [trusted=yes] for deb [arch=…] lines
      *   v19 — fix addTrustedToSourcesFile for deb [arch=X] format (was only handling bare "deb URL");
      *          add Dir::Bin::apt-key to apt.conf
+     *   v20 — switch LD_PRELOAD to APK's libtermux-exec.so (termux_exec.c) which intercepts ALL
+     *          path functions (open/opendir/fopen/execve/stat/access/…); drop bootstrap proxy;
+     *          add Dir::Log to apt.conf to fix EIPP eipp.log.xz permission error
      */
-    private static final String SHEBANG_PATCH_MARKER_NAME = ".aicode_patched_v19";
+    private static final String SHEBANG_PATCH_MARKER_NAME = ".aicode_patched_v20";
     private static final File   SHEBANG_PATCH_MARKER      = new File(TERMUX_PREFIX_DIR_PATH, SHEBANG_PATCH_MARKER_NAME);
 
     /** Performs bootstrap setup if necessary. */
@@ -587,6 +590,12 @@ final class TermuxInstaller {
             "Dir::Cache \"" + pfx + "/var/cache/apt/\";\n" +
             "Dir::Cache::Archives \"" + pfx + "/var/cache/apt/archives/\";\n" +
             "Dir::Bin::dpkg \"" + pfx + "/bin/dpkg\";\n" +
+            // Override apt's log directory so it writes to our prefix, not the compiled-in
+            // /data/data/com.termux/ path.  Without this, apt fails with:
+            //   W: Could not open file '.../com.termux/.../var/log/apt/eipp.log.xz' - EPERM
+            //   E: Directory '.../com.termux/.../var/log/apt/' missing
+            // which blocks the EIPP install planner and causes apt to abort before calling dpkg.
+            "Dir::Log \"" + pfx + "/var/log/apt/\";\n" +
             // apt method drivers (http, https, …) live in lib/apt/methods/ under our prefix.
             // apt looks up the compiled-in path (/data/data/com.termux/…) unless we override
             // Dir::Bin::Methods with an absolute path here.
@@ -635,6 +644,7 @@ final class TermuxInstaller {
                 "var/lib/dpkg/info",
                 "var/lib/dpkg/updates",
                 "var/lib/dpkg/triggers",
+                "var/log/apt",
                 "etc/apt/apt.conf.d",
                 "etc/apt/sources.list.d",
                 "etc/apt/preferences.d"}) {
