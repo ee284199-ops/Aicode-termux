@@ -90,8 +90,10 @@ final class TermuxInstaller {
      *   v16 — (no apt.conf Dir::Bin::Methods; triggering v17 re-patch)
      *   v17 — add Dir::Bin::Methods to apt.conf so apt finds its HTTP method driver
      *   v18 — add Dir::Bin::gpgv to apt.conf; fix termux-change-repo [trusted=yes] for deb [arch=…] lines
+     *   v19 — fix addTrustedToSourcesFile for deb [arch=X] format (was only handling bare "deb URL");
+     *          add Dir::Bin::apt-key to apt.conf
      */
-    private static final String SHEBANG_PATCH_MARKER_NAME = ".aicode_patched_v18";
+    private static final String SHEBANG_PATCH_MARKER_NAME = ".aicode_patched_v19";
     private static final File   SHEBANG_PATCH_MARKER      = new File(TERMUX_PREFIX_DIR_PATH, SHEBANG_PATCH_MARKER_NAME);
 
     /** Performs bootstrap setup if necessary. */
@@ -595,6 +597,9 @@ final class TermuxInstaller {
             // Our bypass script always returns GOODSIG so repos are accepted without a
             // valid keyring.  Run `pkg install termux-keyring` to restore real checking.
             "Dir::Bin::gpgv \"" + pfx + "/bin/gpgv\";\n" +
+            // Same override for apt-key (used by older apt / pkg wrappers to manage keyrings).
+            // patchBootstrapShebangs() has already replaced com.termux in the apt-key script.
+            "Dir::Bin::apt-key \"" + pfx + "/bin/apt-key\";\n" +
             "// Allow repos without valid GPG signatures (bootstrap keyring may not yet be installed).\n" +
             "// Run `pkg install termux-keyring` to enable full signature verification.\n" +
             "Acquire::AllowInsecureRepositories \"true\";\n" +
@@ -709,8 +714,14 @@ final class TermuxInstaller {
     }
 
     /**
-     * Replace "deb http..." / "deb https..." lines with "deb [trusted=yes] http..."
-     * in a .list file, skipping lines that already have "[trusted=yes]".
+     * Add [trusted=yes] to every "deb ..." line in a .list file, skipping lines that
+     * already contain "trusted=yes".  Handles both formats:
+     *   deb URL …            →  deb [trusted=yes] URL …
+     *   deb [arch=…] URL …   →  deb [arch=… trusted=yes] URL …
+     *
+     * NOTE: v18 only handled the bare "deb URL" case; v19 adds the "deb [arch=X]" case.
+     * Without this fix the bootstrap sources.list (which uses deb [arch=aarch64] …) was
+     * never patched and apt-get still tried to verify GPG signatures → "not signed" error.
      */
     private static void addTrustedToSourcesFile(File f) {
         if (!f.exists() || f.length() == 0 || f.length() > 64 * 1024) return;
@@ -726,9 +737,19 @@ final class TermuxInstaller {
             for (byte b : raw) if (b == 0) return;
 
             String content = new String(raw, "UTF-8");
-            // Replace "deb " NOT already followed by "[" with "deb [trusted=yes] "
-            // Handle optional leading whitespace
-            String patched = content.replaceAll("(?m)^(\\s*)deb (?!\\[)", "$1deb [trusted=yes] ");
+            // Insert [trusted=yes] into every "deb" line that doesn't already have it.
+            // Two cases:
+            //   deb URL …         → deb [trusted=yes] URL …
+            //   deb [arch=…] URL  → deb [arch=… trusted=yes] URL
+            String patched = content
+                // Case 1: "deb [existing_opts]" → "deb [existing_opts trusted=yes]"
+                // Matches deb [...] where the content does NOT end with "trusted=yes"
+                .replaceAll("(?m)^(\\s*)deb \\[([^\\]]*?)(?<!trusted=yes)\\]", "$1deb [$2 trusted=yes]")
+                // Case 2: "deb URL" (no brackets at all) → "deb [trusted=yes] URL"
+                .replaceAll("(?m)^(\\s*)deb (?!\\[)", "$1deb [trusted=yes] ");
+            // Tidy up accidental "deb [ trusted=yes]" → "deb [trusted=yes]" (empty-bracket edge case)
+            patched = patched.replace("deb [ trusted=yes]", "deb [trusted=yes]");
+
             if (patched.equals(content)) return; // already patched or no deb lines
 
             try (FileOutputStream fos = new FileOutputStream(f)) {
