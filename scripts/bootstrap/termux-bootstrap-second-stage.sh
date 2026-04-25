@@ -175,20 +175,16 @@ run_package_postinst_maintainer_scripts() {
 
 			dpkg_version=$(dpkg --version 2>/dev/null | head -n 1 | sed -E 's/.*version ([^ ]+) .*/\1/')
 			if [[ ! "$dpkg_version" =~ ^[0-9].*$ ]]; then
-				if [ "${TERMUX_PREFIX}" = "/data/data/com.termux/files/usr" ]; then
-					log_error "Failed to find the 'dpkg' version"
-					log_error "$dpkg_version"
-					return 1
-				else
-					# For custom package names, dpkg --version fails with "Permission denied"
-					# when it tries to open its compiled-in sysconfdir (/data/data/com.termux/...).
-					# libtermux-exec only intercepts execve(), not open()/opendir() syscalls,
-					# so the hardcoded sysconfdir path cannot be redirected at the SO level.
-					# Use a safe fallback version — the value only affects which --force flags
-					# are passed; 1.22.0 is conservative and universally safe.
-					log "Note: dpkg --version unavailable (com.termux sysconfdir inaccessible), using fallback version."
-					dpkg_version="1.22.0"
-				fi
+				# dpkg --version can fail when its compiled-in sysconfdir
+				# (/data/data/com.termux/files/usr/etc) is inaccessible — e.g. when
+				# running under a custom package name while the real Termux app is
+				# installed on the same device (Android sandbox blocks cross-app access).
+				# libtermux-exec only intercepts execve(), not open()/opendir(), so the
+				# hardcoded sysconfdir cannot be redirected at the SO level.
+				# dpkg_version is only exported as DPKG_RUNNING_VERSION for postinst
+				# scripts; using a safe constant fallback is correct in all cases.
+				log "Note: dpkg --version failed (sysconfdir may be inaccessible), using fallback version 1.22.0."
+				dpkg_version="1.22.0"
 			fi
 
 			# Check `dpkg --force-help` for current defaults.
