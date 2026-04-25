@@ -53,7 +53,8 @@ jobs:
         id: get_tag
         run: |
           new_tag="bootstrap-$(date "+%Y.%m.%d")"
-          existing_tag_revision=$(git tag | grep "$new_tag" | sort -r | head -n 1 | cut -d- -f3 | cut -dr -f2)
+          # Extract the numeric revision from tags like bootstrap-2026.04.25-r3+apt.android-7
+          existing_tag_revision=$(git tag | grep "^${new_tag}-r[0-9]" | sort -r | head -n 1 | sed -E 's/.*-r([0-9]+)\+.*/\1/')
           if [ -n "$existing_tag_revision" ]; then
             tag_rev=$((existing_tag_revision + 1))
           else
