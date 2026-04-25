@@ -97,10 +97,18 @@ int openat(int dirfd, const char *path, int flags, ...) {
 
 /* ─── execve ─────────────────────────────────────────────────────────────── */
 /*
- * Intercept execve to handle two critical Android/Termux issues:
- * 1. Permission Denied: Force chmod +x before execution.
- * 2. Bad Shebang: If the kernel can't find the interpreter (due to hardcoded com.termux),
- *    we manually wrap the call using our own shell.
+ * Intercept execve to handle hardcoded /data/data/com.termux/ paths.
+ *
+ * Two problems fixed here:
+ * 1. The script/binary path itself may contain com.termux → remap it.
+ * 2. The script's shebang line may contain com.termux (e.g.
+ *    #!/data/data/com.termux/files/usr/bin/bash).  The kernel reads the
+ *    shebang BEFORE libc and therefore bypasses our open() hook — it will
+ *    fail with EACCES/ENOENT trying to open the com.termux interpreter.
+ *    When that happens we read the shebang ourselves, remap the interpreter
+ *    path, and re-exec with the correct bash (NOT /system/bin/sh, which
+ *    does not understand bash-specific syntax like ((...)) and would cause
+ *    postinst scripts to fail with "syntax error: expression expected '(('").
  */
 int execve(const char *path, char * const argv[], char * const envp[]) {
     RESOLVE(execve, int, const char *, char * const [], char * const []);
@@ -108,32 +116,51 @@ int execve(const char *path, char * const argv[], char * const envp[]) {
     char buf[PATH_MAX];
     const char *rp = remap(path, buf);
 
-    // Try to ensure the file is executable (fixes dpkg extraction permission issues)
+    // Ensure the file is executable (fixes dpkg extraction permission issues)
     chmod(rp, 0700);
 
-    // Try original/remapped execution
+    // Try executing with the (possibly remapped) path
     int ret = real_execve(rp, argv, envp);
 
-    // If it fails with ENOENT or EACCES, check for a bad shebang
-    if (ret == -1 && (errno == ENOENT || errno == EACCES)) {
+    // If the kernel rejected the script, it is likely because the shebang
+    // interpreter path is a hardcoded com.termux path the kernel cannot open.
+    // Read the shebang, remap the interpreter, and retry.
+    if (ret == -1 && (errno == ENOENT || errno == EACCES || errno == EPERM)) {
         int fd = real_open(rp, O_RDONLY, 0);
         if (fd != -1) {
-            char head[2];
-            if (read(fd, head, 2) == 2 && head[0] == '#' && head[1] == '!') {
-                close(fd);
-                // It's a script. The kernel failed to find the interpreter.
-                // Wrap it with /system/bin/sh
-                int argc = 0;
-                while (argv[argc]) argc++;
-                char **new_argv = malloc(sizeof(char*) * (argc + 3));
-                if (new_argv) {
-                    new_argv[0] = "/system/bin/sh";
-                    new_argv[1] = (char*)rp;
-                    for (int i = 0; i <= argc; i++) new_argv[i+2] = argv[i+1];
-                    return real_execve(new_argv[0], new_argv, envp);
+            char head[PATH_MAX + 4];
+            ssize_t n = read(fd, head, sizeof(head) - 1);
+            close(fd);
+            if (n > 2 && head[0] == '#' && head[1] == '!') {
+                head[n] = '\0';
+                char *interp = head + 2;
+                // Skip optional whitespace after #!
+                while (*interp == ' ' || *interp == '\t') interp++;
+                // Find end of interpreter path (stop at space, newline, or NUL)
+                char *interp_end = interp;
+                while (*interp_end && *interp_end != ' ' && *interp_end != '\n' && *interp_end != '\r')
+                    interp_end++;
+                *interp_end = '\0';
+
+                if (*interp) {
+                    // Remap the interpreter (e.g. com.termux/bin/bash → com.aicode.studio/bin/bash)
+                    char ibuf[PATH_MAX];
+                    const char *ri = remap(interp, ibuf);
+
+                    int argc = 0;
+                    while (argv[argc]) argc++;
+                    // new_argv = [interpreter, script, argv[1]..argv[argc-1], NULL]
+                    char **new_argv = malloc(sizeof(char*) * (argc + 2));
+                    if (new_argv) {
+                        new_argv[0] = (char*)ri;
+                        new_argv[1] = (char*)rp;
+                        for (int i = 1; i < argc; i++) new_argv[i + 1] = (char*)argv[i];
+                        new_argv[argc + 1] = NULL;
+                        ret = real_execve(ri, new_argv, envp);
+                        free(new_argv);
+                    }
                 }
             }
-            close(fd);
         }
     }
     return ret;
