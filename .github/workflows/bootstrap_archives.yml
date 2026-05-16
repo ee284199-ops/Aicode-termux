@@ -1,6 +1,14 @@
 name: Generate bootstrap archives (android-7)
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/generate-bootstraps.sh'
+      - 'scripts/properties.sh'
+      - 'scripts/bootstrap/**'
+      - 'VERSION'
   schedule:
     - cron: "0 0 * * 0"
   workflow_dispatch:
