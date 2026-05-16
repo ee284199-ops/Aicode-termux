@@ -579,6 +579,40 @@ UAEOF
 		fi
 	fi
 
+	# ── Install aicode utility + embed bootstrap version ────────────────────
+	# VERSION file (repo root) holds a simple integer: 1, 2, 3 …
+	# It is bumped manually before each release commit.
+	# The resulting bootstrap-version file is read at runtime by `aicode -v`.
+	_aicode_ver="$(cat "${TERMUX_SCRIPTDIR}/VERSION" 2>/dev/null | tr -d '[:space:]')"
+	[ -z "$_aicode_ver" ] && _aicode_ver="0"
+	_build_date="$(date '+%Y.%m.%d')"
+	echo "[*] Installing aicode v${_aicode_ver} utility for ${package_arch}..."
+	_pfx="${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}"
+	mkdir -p "${_pfx}/share/aicode" "${_pfx}/bin"
+	# Version marker — content: "v1+2026.05.16"
+	printf 'v%s+%s\n' "${_aicode_ver}" "${_build_date}" \
+		> "${_pfx}/share/aicode/bootstrap-version"
+	# aicode script — shebang and _VF path use the real runtime prefix
+	cat > "${_pfx}/bin/aicode" << AICODEEOF
+#!${TERMUX_PREFIX}/bin/sh
+# aicode — AICode Studio bootstrap utility
+# Usage: aicode [-v|--version]  Show bootstrap version
+_VF="${TERMUX_PREFIX}/share/aicode/bootstrap-version"
+case "\$1" in
+  -v|--version)
+    [ -f "\$_VF" ] && cat "\$_VF" || echo "version unknown"
+    ;;
+  ""|--help|-h)
+    printf 'AICode Studio Bootstrap Utility\nUsage: aicode [-v]  Show bootstrap version\n'
+    ;;
+  *)
+    printf 'Unknown option: %s\n' "\$1" >&2
+    exit 1
+    ;;
+esac
+AICODEEOF
+	chmod 755 "${_pfx}/bin/aicode"
+
 	# Add termux bootstrap second stage files
 	add_termux_bootstrap_second_stage_files "$package_arch"
 
