@@ -579,6 +579,73 @@ UAEOF
 		fi
 	fi
 
+	# ── v28: Install aicode-path-patch + profile.d auto-fix (custom pkg only) ──
+	# These are also installed/refreshed by TermuxInstaller.java on every app
+	# launch.  Embedding them in the zip means they're present from the very
+	# first shell session — before the user has restarted the app a second time.
+	if [ "${TERMUX_APP__PACKAGE_NAME}" != "com.termux" ]; then
+		echo "[*] Installing aicode-path-patch + profile.d hook for ${package_arch}..."
+		_v28pfx="${BOOTSTRAP_ROOTFS}/${TERMUX_PREFIX}"
+		_v28pkg="${TERMUX_APP__PACKAGE_NAME}"
+		mkdir -p "${_v28pfx}/bin" "${_v28pfx}/etc/profile.d" "${_v28pfx}/etc/apt/apt.conf.d" \
+		         "${_v28pfx}/var/lib/aicode"
+
+		# aicode-path-patch: replaces com.termux paths after pkg install + fixes tor
+		cat > "${_v28pfx}/bin/aicode-path-patch" << AICODEPATEOF
+#!${TERMUX_PREFIX}/bin/sh
+# aicode-path-patch — DPkg::Post-Invoke hook + profile.d helper
+# Installed by com.aicode.studio TermuxInstaller (v28+).
+OLD='/data/data/com.termux'
+NEW='/data/data/${_v28pkg}'
+# ── 1. General path replacement: scan etc/ and var/ ─────────────────────
+for scan_dir in "${TERMUX_PREFIX}/etc" "${TERMUX_PREFIX}/var"; do
+  [ -d "\$scan_dir" ] || continue
+  find "\$scan_dir" -type f -size -512k 2>/dev/null | while IFS= read -r f; do
+    case "\$f" in
+      *.gpg|*.bin|*.db|*.xz|*.gz|*.bz2|*.lz4|*.deb|*.png|*.jpg) continue ;;
+    esac
+    grep -qF "\$OLD" "\$f" 2>/dev/null || continue
+    sed -i "s|\${OLD}|\${NEW}|g" "\$f" 2>/dev/null
+  done
+done
+# ── 2. Tor: fix DataDirectory /tmp → /var/lib/tor (needs 0700, /tmp is 1777) ─
+_torrc='${TERMUX_PREFIX}/etc/tor/torrc'
+_tor_data='${TERMUX_PREFIX}/var/lib/tor'
+if [ -f "\$_torrc" ]; then
+  sed -i "s|^DataDirectory[[:space:]][[:space:]]*.*[/]tmp[[:space:]]*\$|DataDirectory \${_tor_data}|" "\$_torrc" 2>/dev/null || true
+  mkdir -p "\$_tor_data" 2>/dev/null && chmod 700 "\$_tor_data" 2>/dev/null || true
+fi
+exit 0
+AICODEPATEOF
+		chmod 755 "${_v28pfx}/bin/aicode-path-patch"
+
+		# 99-aicode-pathfix.sh: sourced on every shell start; re-runs patcher only
+		# when dpkg/status mtime changed (= new package was installed).
+		cat > "${_v28pfx}/etc/profile.d/99-aicode-pathfix.sh" << PROFIXEOF
+#!${TERMUX_PREFIX}/bin/sh
+# 99-aicode-pathfix.sh — AICode Studio auto path-fix (v28)
+# Sourced by bash/zsh on every Termux shell start.
+# Fast path (~1ms): stamp newer than dpkg/status → skip.
+# Slow path: new pkg installed → run aicode-path-patch, update stamp.
+_PFX='${TERMUX_PREFIX}'
+_STAMP="\${_PFX}/var/lib/aicode/.pathfix-stamp"
+_DPKG="\${_PFX}/var/lib/dpkg/status"
+if [ -f "\$_STAMP" ] && [ -f "\$_DPKG" ] && [ "\$_STAMP" -nt "\$_DPKG" ]; then
+  return 0 2>/dev/null; exit 0
+fi
+[ -x "\${_PFX}/bin/aicode-path-patch" ] && "\${_PFX}/bin/aicode-path-patch" 2>/dev/null
+mkdir -p "\${_PFX}/var/lib/aicode" 2>/dev/null
+touch "\$_STAMP" 2>/dev/null
+return 0 2>/dev/null; exit 0
+PROFIXEOF
+		chmod 644 "${_v28pfx}/etc/profile.d/99-aicode-pathfix.sh"
+
+		# 99pathpatch: DPkg::Post-Invoke hook — calls aicode-path-patch after every pkg install
+		printf 'DPkg::Post-Invoke { "%s/bin/aicode-path-patch"; };\n' \
+			"${TERMUX_PREFIX}" \
+			> "${_v28pfx}/etc/apt/apt.conf.d/99pathpatch"
+	fi
+
 	# ── Install aicode utility + embed bootstrap version ────────────────────
 	# VERSION file (repo root) holds a simple integer: 1, 2, 3 …
 	# It is bumped manually before each release commit.
